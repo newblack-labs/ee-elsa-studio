@@ -14,9 +14,6 @@
             @appBarItem
         }
 
-        <MudIconButton Icon="@Icons.Material.Outlined.Book" Color="Color.Inherit" Href="https://v3.elsaworkflows.io/" Target="_blank" Title="Documentation"/>
-        <MudIconButton Icon="@Icons.Custom.Brands.GitHub" Color="Color.Inherit" Href="https://github.com/elsa-workflows/elsa-core" Target="_blank" Title="Source code"/>
-
         @if (IsDarkMode)
         {
             <MudToggleIconButton Icon="@Icons.Material.Outlined.LightMode" Color="Color.Inherit" @onclick="@ToggleDarkMode"></MudToggleIconButton>

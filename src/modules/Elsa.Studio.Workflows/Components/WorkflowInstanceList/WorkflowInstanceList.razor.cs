@@ -249,6 +249,18 @@ public partial class WorkflowInstanceList : IAsyncDisposable
         await WorkflowInstanceService.DeleteAsync(instanceId);
         Reload();
     }
+    
+    private async Task OnRetryClicked(WorkflowInstanceRow row)
+    {
+        var result = await DialogService.ShowMessageBox(Localizer["Retry workflow?"], Localizer["Are you sure you want to retry this workflow instance?"], yesText: Localizer["Retry"], cancelText: Localizer["Cancel"]);
+        
+        if (result != true)
+            return;
+        
+        var instanceId = row.WorkflowInstanceId;
+        await WorkflowInstanceService.RetryAsync(instanceId);
+        Reload();
+    }
 
     private async Task OnCancelClicked(WorkflowInstanceRow row)
     {

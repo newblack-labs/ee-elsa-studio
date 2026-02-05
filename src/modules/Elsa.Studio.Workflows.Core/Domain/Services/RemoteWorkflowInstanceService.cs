@@ -126,5 +126,11 @@ public class RemoteWorkflowInstanceService : IWorkflowInstanceService
         return response.Items;
     }
 
+    public async Task RetryAsync(string instanceId, CancellationToken cancellationToken = default)
+    {
+        var api = await GetApiAsync(cancellationToken);
+        await api.RetryAsync(instanceId, cancellationToken);
+    }
+
     private async Task<IWorkflowInstancesApi> GetApiAsync(CancellationToken cancellationToken = default) => await _backendApiClientProvider.GetApiAsync<IWorkflowInstancesApi>(cancellationToken);
 }

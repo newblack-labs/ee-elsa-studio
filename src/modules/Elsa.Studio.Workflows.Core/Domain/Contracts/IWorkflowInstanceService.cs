@@ -19,4 +19,5 @@ public interface IWorkflowInstanceService
     Task<FileDownload> BulkExportAsync(IEnumerable<string> ids, CancellationToken cancellationToken = default);
     Task<int> BulkImportAsync(IEnumerable<StreamPart> streamParts, CancellationToken cancellationToken = default);
     Task<IEnumerable<ResolvedVariable>> GetVariablesAsync(string instanceId, CancellationToken cancellationToken = default);
+    Task RetryAsync(string instanceId, CancellationToken cancellationToken = default);
 }
