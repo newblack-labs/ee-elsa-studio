@@ -20,6 +20,7 @@ public partial class Secret : StudioComponentBase
     private MudForm _form = default!;
     private SecretInputModelValidator _validator = default!;
     private SecretInputModel _model = new();
+    private bool _showSecret;
 
     /// <inheritdoc />
     protected override async Task OnInitializedAsync()
