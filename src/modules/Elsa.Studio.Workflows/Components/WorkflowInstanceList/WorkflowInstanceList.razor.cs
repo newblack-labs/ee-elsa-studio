@@ -1,5 +1,6 @@
 using Elsa.Api.Client.Resources.Alterations.Contracts;
 using Elsa.Api.Client.Resources.Alterations.Models;
+using Elsa.Api.Client.Resources.Alterations.Requests;
 using Elsa.Api.Client.Resources.WorkflowDefinitions.Models;
 using Elsa.Api.Client.Resources.WorkflowInstances.Enums;
 using Elsa.Api.Client.Resources.WorkflowInstances.Models;
@@ -432,6 +433,21 @@ public partial class WorkflowInstanceList : IAsyncDisposable
             await WorkflowInstanceService.BulkCancelAsync(request);
         }
 
+        Reload();
+    }
+
+    private async Task OnBulkRetryClicked()
+    {
+        var result = await DialogService.ShowMessageBox(Localizer["Retry selected workflow instances?"], Localizer["Are you sure you want to retry the selected workflow instances?"], yesText: Localizer["Retry"], cancelText: Localizer["Cancel"]);
+
+        if (result != true)
+            return;
+
+        var workflowInstanceIds = _selectedRows.Select(x => x.WorkflowInstanceId).ToList();
+        var request = new BulkRetryRequest { WorkflowInstanceIds = workflowInstanceIds };
+        var alterationsApi = await BackendApiClientProvider.GetApiAsync<IAlterationsApi>();
+        await alterationsApi.BulkRetryAsync(request, CancellationToken.None);
+        _selectedRows.Clear();
         Reload();
     }
 
