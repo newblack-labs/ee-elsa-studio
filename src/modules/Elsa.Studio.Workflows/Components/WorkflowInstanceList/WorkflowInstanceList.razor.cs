@@ -355,6 +355,19 @@ public partial class WorkflowInstanceList : IAsyncDisposable
         Reload();
     }
 
+    private async Task OnRetryClicked(WorkflowInstanceRow row)
+    {
+        var result = await DialogService.ShowMessageBox(Localizer["Retry workflow instance?"], Localizer["Are you sure you want to retry this workflow instance? It will be migrated to the latest published version."], yesText: Localizer["Retry"], cancelText: Localizer["Cancel"]);
+
+        if (result != true)
+            return;
+
+        var request = new BulkRetryRequest { WorkflowInstanceIds = [row.WorkflowInstanceId] };
+        var alterationsApi = await BackendApiClientProvider.GetApiAsync<IAlterationsApi>();
+        await alterationsApi.BulkRetryAsync(request, CancellationToken.None);
+        Reload();
+    }
+
     private async Task OnDownloadClicked(WorkflowInstanceRow workflowInstanceRow)
     {
         var download = await WorkflowInstanceService.ExportAsync(workflowInstanceRow.WorkflowInstanceId);
