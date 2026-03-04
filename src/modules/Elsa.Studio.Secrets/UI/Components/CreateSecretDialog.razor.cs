@@ -16,6 +16,7 @@ public partial class CreateSecretDialog
     private EditContext _editContext = null!;
     private FluentValidationValidator _fluentValidationValidator = null!;
     private SecretInputModelValidator _validator = null!;
+    private bool _showSecret;
     
     /// The default name of the agent to create.
     [Parameter] public string SecretName { get; set; } = "";
