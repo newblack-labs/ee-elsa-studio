@@ -69,6 +69,8 @@ public partial class CodeView : IDisposable
             return;
 
         var model = await _monacoEditor.GetModel();
+        if (model == null)
+            return;
         if (json == _lastMonacoEditorContent)
             return;
 
@@ -176,6 +178,11 @@ public partial class CodeView : IDisposable
     {
         _isInternalContentChange = true;
         var model = await _monacoEditor!.GetModel();
+        if (model == null)
+        {
+            _isInternalContentChange = false;
+            return;
+        }
         await model.SetValue(WorkflowDefinitionSerialized);
         _lastMonacoEditorContent = WorkflowDefinitionSerialized;
     }
