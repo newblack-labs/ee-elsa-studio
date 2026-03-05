@@ -26,6 +26,11 @@ namespace Elsa.Studio.Components
         {
             _isInternalContentChange = true;
             var model = await _monacoEditor!.GetModel();
+            if (model == null)
+            {
+                _isInternalContentChange = false;
+                return;
+            }
             _lastMonacoEditorContent = Value;
             await model.SetValue(Value);
             _isInternalContentChange = false;

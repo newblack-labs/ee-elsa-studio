@@ -108,6 +108,8 @@ namespace Elsa.Studio.Components
                 FormatUsing(visualizer);
 
                 var model = await _monacoEditor!.GetModel();
+                if (model == null)
+                    return;
                 await model.SetValue(Pretty);
                 await Global.SetModelLanguage(JSRuntime, model, SelectedVisualizer.Syntax);
             }
