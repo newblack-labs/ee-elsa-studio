@@ -368,7 +368,7 @@ public partial class WorkflowInstanceList : IAsyncDisposable
 
     private async Task OnRetryClicked(WorkflowInstanceRow row)
     {
-        var result = await DialogService.ShowMessageBox(Localizer["Retry workflow instance?"], Localizer["Are you sure you want to retry this workflow instance? It will be migrated to the latest published version."], yesText: Localizer["Retry"], cancelText: Localizer["Cancel"]);
+        var result = await DialogService.ShowMessageBoxAsync(Localizer["Retry workflow instance?"], Localizer["Are you sure you want to retry this workflow instance? It will be migrated to the latest published version."], yesText: Localizer["Retry"], cancelText: Localizer["Cancel"]);
 
         if (result != true)
             return;
@@ -451,7 +451,7 @@ public partial class WorkflowInstanceList : IAsyncDisposable
 
     private async Task OnBulkRetryClicked()
     {
-        var result = await DialogService.ShowMessageBox(Localizer["Retry selected workflow instances?"], Localizer["Are you sure you want to retry the selected workflow instances?"], yesText: Localizer["Retry"], cancelText: Localizer["Cancel"]);
+        var result = await DialogService.ShowMessageBoxAsync(Localizer["Retry selected workflow instances?"], Localizer["Are you sure you want to retry the selected workflow instances?"], yesText: Localizer["Retry"], cancelText: Localizer["Cancel"]);
 
         if (result != true)
             return;
