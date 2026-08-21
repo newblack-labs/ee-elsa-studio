@@ -4,7 +4,12 @@
     <CentralPackageTransitivePinningEnabled>false</CentralPackageTransitivePinningEnabled>
   </PropertyGroup>
   <ItemGroup Label="Elsa">
-    <PackageVersion Include="Elsa.Api.Client" Version="3.8.0-rc1" />
+    <!-- elsa-studio 3.8.0-rc1 references Elsa.Api.Client.Resources.OutputConverters (PR #929), which the
+         published Elsa.Api.Client 3.8.0-rc1 does NOT contain - that type only exists on elsa-core main,
+         not on release/3.8.0. Upstream studio release/3.8.0 still pins 3.8.0-rc1 and therefore does not
+         compile. Pin the newest main-built preview until 3.8.0 stable ships a matching client.
+         See plans/elsa-3.8.0-upgrade.md. -->
+    <PackageVersion Include="Elsa.Api.Client" Version="3.8.0-preview.5459" />
   </ItemGroup>
   <ItemGroup>
     <PackageVersion Include="Blazored.FluentValidation" Version="2.2.0" />
