@@ -10,6 +10,7 @@ namespace Elsa.Studio.Services;
 public class DefaultAppBarService : IAppBarService
 {
     private readonly ICollection<AppBarElement> _elements = new List<AppBarElement>();
+    private readonly HashSet<Type> _componentTypes = [];
 
     /// <inheritdoc />
     public event Action? AppBarItemsChanged;
@@ -29,6 +30,15 @@ public class DefaultAppBarService : IAppBarService
     /// <inheritdoc />
     public void AddComponent<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.All)] T>(float? order = null) where T : IComponent
     {
+        // Guard on the component type. AddElement's own duplicate check cannot catch these: every call
+        // here builds a fresh AppBarElement holding a fresh render-fragment delegate, so no two
+        // elements are ever equal. MainLayout adds DarkModeToggle and ProductInfo from OnInitialized,
+        // and the layout re-initializes whenever the authentication state changes without a full page
+        // load — which is what brokered sign-in does — so every sign-in appended another copy of both
+        // icons to the app bar until the next hard refresh.
+        if (!_componentTypes.Add(typeof(T)))
+            return;
+
         var element = new AppBarElement
         {
             Order = order ?? 0,
