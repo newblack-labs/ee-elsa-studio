@@ -1,6 +1,10 @@
 ﻿@using Elsa.Studio.Contracts
 @using Elsa.Studio.Models
+@using Microsoft.AspNetCore.Components.Authorization
+@using Microsoft.Extensions.DependencyInjection
+@implements IDisposable
 @inject IMenuService MenuService;
+@inject IServiceProvider ServiceProvider;
 
 <MudNavMenu Color="Color.Primary" Margin="Margin.Dense" Class="studio-nav">
     @foreach (var menuItemGroup in _menuItemsGroups.Values)
@@ -23,11 +27,48 @@
 {
     private IDictionary<string, MenuItemGroup> _menuItemsGroups = new Dictionary<string, MenuItemGroup>();
     private IEnumerable<MenuItem> _menuItems = new List<MenuItem>();
+    private AuthenticationStateProvider? _authenticationStateProvider;
 
     /// <inheritdoc />
     protected override async Task OnInitializedAsync()
     {
+        // Menu providers gate their entries on the backend's installed-feature catalog, which is only
+        // readable once the user is authenticated. This component is a stable child of MainLayout, so
+        // Blazor never re-initializes it, and a sign-in that does not reload the page — which is what
+        // the external authentication broker performs — would leave every feature-gated entry
+        // (alterations, console logs, OpenTelemetry, structured logs) missing for the rest of the
+        // session, until the user happens to trigger a full reload. Rebuild the menu whenever the
+        // authentication state changes.
+        //
+        // Resolved from the service provider rather than injected, because a host that disables
+        // authorization registers no AuthenticationStateProvider at all.
+        _authenticationStateProvider = ServiceProvider.GetService<AuthenticationStateProvider>();
+
+        if (_authenticationStateProvider is not null)
+            _authenticationStateProvider.AuthenticationStateChanged += OnAuthenticationStateChanged;
+
+        await LoadMenuAsync();
+    }
+
+    private async Task LoadMenuAsync()
+    {
         _menuItemsGroups = (await MenuService.GetMenuItemGroupsAsync()).ToDictionary(x => x.Name);
         _menuItems = await MenuService.GetMenuItemsAsync();
+    }
+
+    private void OnAuthenticationStateChanged(Task<AuthenticationState> authenticationStateTask)
+    {
+        _ = InvokeAsync(async () =>
+        {
+            await LoadMenuAsync();
+            StateHasChanged();
+        });
+    }
+
+    /// <inheritdoc />
+    public void Dispose()
+    {
+        if (_authenticationStateProvider is not null)
+            _authenticationStateProvider.AuthenticationStateChanged -= OnAuthenticationStateChanged;
     }
 }
