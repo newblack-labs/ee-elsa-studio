@@ -8,8 +8,11 @@ namespace Elsa.Studio.Services;
 /// <see cref="DefaultFeatureService"/>, which decides whether a feature is initialized. Those two must
 /// agree: matching in one place only produces a menu entry pointing at a feature that was never
 /// initialized, which is a subtler version of the bug the reconciliation exists to fix.
+///
+/// Not to be confused with <c>Elsa.Studio.Constants.RemoteFeatureNames</c>, which holds the declared
+/// name constants that this class reconciles against what a host reports.
 /// </remarks>
-public static class RemoteFeatureNames
+public static class RemoteFeatureNameMatcher
 {
     private const string ShellFeatureMarker = ".ShellFeatures.";
 
@@ -20,9 +23,18 @@ public static class RemoteFeatureNames
     /// A CShells host reports the declared name verbatim. A classic host composes its own in
     /// Module.Install, as the literal namespace "Elsa" plus the feature type's name with "Feature"
     /// stripped — so "Elsa.Diagnostics.ConsoleLogs.ShellFeatures.ConsoleLogs" arrives as
-    /// "Elsa.ConsoleLogs". The module name is offered too, for modules already one segment deep.
+    /// "Elsa.ConsoleLogs".
+    ///
+    /// The module name is offered too, because for a module only one segment deep it is already the
+    /// classic name: "Elsa.Alterations.ShellFeatures.Alterations" gives "Elsa.Alterations", which is
+    /// exactly what a classic host reports.
+    ///
+    /// Note the direction of the imprecision: the root-namespace candidate is derived, not taken from
+    /// Module.Install's literal "Elsa", so a hypothetical "Elsa.Anything.ShellFeatures.Http" would also
+    /// accept a host reporting "Elsa.Http". That fails *open* — a page whose backend API is absent —
+    /// rather than closed. No module in the tree collides today.
     /// </remarks>
-    public static HashSet<string> GetCandidates(string featureName)
+    public static IReadOnlySet<string> GetCandidates(string featureName)
     {
         var candidates = new HashSet<string>(StringComparer.Ordinal) { featureName };
 

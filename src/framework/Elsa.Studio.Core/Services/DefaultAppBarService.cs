@@ -52,7 +52,9 @@ public class DefaultAppBarService : IAppBarService
     /// <inheritdoc />
     public void AddElement<T>(float? order = null) where T : AppBarElement, new()
     {
-        // Same guard for the element-typed overload, which IAppBarService now prefers over AddComponent.
+        // Same guard for the element-typed overload. Nothing in the tree calls this today (every
+        // contributor uses AddComponent), so it is guarded for consistency rather than to fix an
+        // observed duplicate — the deprecated entry point is AddAppBarItem, not AddComponent.
         if (!_contributedTypes.Add(typeof(T)))
             return;
 

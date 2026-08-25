@@ -49,7 +49,12 @@
         if (_authenticationStateProvider is not null)
             _authenticationStateProvider.AuthenticationStateChanged += OnAuthenticationStateChanged;
 
-        await LoadMenuAsync(CancellationToken.None);
+        // Routed through the same guard as any later rebuild rather than awaited directly. The handler
+        // is already subscribed, so a sign-in landing while this first load is still in flight would
+        // otherwise race it: the rebuild wins, then this load's continuation resumes and overwrites the
+        // authenticated menu with the unauthenticated one it captured — the exact out-of-order clobber
+        // the guard exists to stop, on the one load that was not covered by it.
+        await BeginRebuildAsync(authenticationStateTask: null);
     }
 
     private async Task LoadMenuAsync(CancellationToken cancellationToken)
@@ -65,27 +70,51 @@
         _menuItems = items;
     }
 
-    private void OnAuthenticationStateChanged(Task<AuthenticationState> authenticationStateTask)
-    {
-        // Cancel any rebuild still in flight. The token provider raises this on every token change, so
-        // two overlapping loads can otherwise complete out of order and leave the stale one in place.
-        var previous = _reloadCts;
-        var cts = new CancellationTokenSource();
-        _reloadCts = cts;
-        previous?.Cancel();
-        previous?.Dispose();
+    private void OnAuthenticationStateChanged(Task<AuthenticationState> authenticationStateTask) =>
+        _ = BeginRebuildAsync(authenticationStateTask);
 
-        _ = InvokeAsync(async () =>
+    /// <summary>
+    /// Rebuilds the menu, cancelling any rebuild still in flight.
+    /// </summary>
+    /// <param name="authenticationStateTask">
+    /// The state a notification carried, awaited so the menu is built against it; null for the initial
+    /// load, which has no notification to wait for.
+    /// </param>
+    private Task BeginRebuildAsync(Task<AuthenticationState>? authenticationStateTask)
+    {
+        var cts = new CancellationTokenSource();
+
+        // Read now, not inside the lambda. CancellationTokenSource.Token throws
+        // ObjectDisposedException once the source is disposed, and the lambda below suspends on the
+        // state task first — so a rebuild superseded during that await would resume, throw from the
+        // Token getter, miss the cancellation filter (ObjectDisposedException is not an
+        // OperationCanceledException) and be logged as a rebuild failure on the ordinary happy path.
+        var token = cts.Token;
+
+        var previous = Interlocked.Exchange(ref _reloadCts, cts);
+
+        try
+        {
+            previous?.Cancel();
+        }
+        catch (ObjectDisposedException)
+        {
+            // The previous rebuild already finished and disposed its own source. Nothing to cancel.
+        }
+
+        return InvokeAsync(async () =>
         {
             try
             {
                 // Awaited so the menu is rebuilt against the state this notification carries, and so a
                 // faulted state task surfaces here instead of becoming a second unobserved exception.
-                await authenticationStateTask;
-                await LoadMenuAsync(cts.Token);
+                if (authenticationStateTask is not null)
+                    await authenticationStateTask;
+
+                await LoadMenuAsync(token);
                 StateHasChanged();
             }
-            catch (OperationCanceledException) when (cts.IsCancellationRequested)
+            catch (OperationCanceledException) when (token.IsCancellationRequested)
             {
                 // Superseded by a newer authentication state change.
             }
@@ -96,6 +125,10 @@
                 // the rest of the session and no indication that a reload would fix it.
                 Logger.LogError(e, "Failed to rebuild the navigation after an authentication state change");
             }
+            finally
+            {
+                cts.Dispose();
+            }
         });
     }
 
@@ -105,7 +138,15 @@
         if (_authenticationStateProvider is not null)
             _authenticationStateProvider.AuthenticationStateChanged -= OnAuthenticationStateChanged;
 
-        _reloadCts?.Cancel();
-        _reloadCts?.Dispose();
+        // Cancel only. Each rebuild disposes its own source in a finally, so disposing here as well
+        // would race that and throw out of Dispose.
+        try
+        {
+            Interlocked.Exchange(ref _reloadCts, null)?.Cancel();
+        }
+        catch (ObjectDisposedException)
+        {
+            // Already finished and cleaned up after itself.
+        }
     }
 }
