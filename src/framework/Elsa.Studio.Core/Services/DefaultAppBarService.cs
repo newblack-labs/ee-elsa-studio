@@ -10,7 +10,14 @@ namespace Elsa.Studio.Services;
 public class DefaultAppBarService : IAppBarService
 {
     private readonly ICollection<AppBarElement> _elements = new List<AppBarElement>();
-    private readonly HashSet<Type> _componentTypes = [];
+
+    // Keyed on the contributing type, which is the only stable identity available. AppBarElement is a
+    // plain class with reference equality, and every Add builds a fresh instance holding a fresh
+    // render-fragment delegate, so AddElement's own Contains check can never match a repeat
+    // contribution. MainLayout adds DarkModeToggle and ProductInfo from OnInitialized, and the shell is
+    // rebuilt when the layout changes — moving between the sign-in screen's layout and the app's — so
+    // each sign-in appended another copy of both icons until the next hard refresh.
+    private readonly HashSet<Type> _contributedTypes = [];
 
     /// <inheritdoc />
     public event Action? AppBarItemsChanged;
@@ -30,27 +37,25 @@ public class DefaultAppBarService : IAppBarService
     /// <inheritdoc />
     public void AddComponent<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.All)] T>(float? order = null) where T : IComponent
     {
-        // Guard on the component type. AddElement's own duplicate check cannot catch these: every call
-        // here builds a fresh AppBarElement holding a fresh render-fragment delegate, so no two
-        // elements are ever equal. MainLayout adds DarkModeToggle and ProductInfo from OnInitialized,
-        // and the layout re-initializes whenever the authentication state changes without a full page
-        // load — which is what brokered sign-in does — so every sign-in appended another copy of both
-        // icons to the app bar until the next hard refresh.
-        if (!_componentTypes.Add(typeof(T)))
+        // Keyed on the component type, not the element type: every call here produces a plain
+        // AppBarElement, so keying on the element would collapse all components into one.
+        if (!_contributedTypes.Add(typeof(T)))
             return;
 
-        var element = new AppBarElement
+        AddElement(new AppBarElement
         {
             Order = order ?? 0,
             Component = builder => builder.CreateComponent<T>()
-        };
-
-        AddElement(element);
+        });
     }
 
     /// <inheritdoc />
     public void AddElement<T>(float? order = null) where T : AppBarElement, new()
     {
+        // Same guard for the element-typed overload, which IAppBarService now prefers over AddComponent.
+        if (!_contributedTypes.Add(typeof(T)))
+            return;
+
         var element = new T();
 
         if (order.HasValue)
@@ -62,6 +67,8 @@ public class DefaultAppBarService : IAppBarService
     /// <inheritdoc />
     public void AddElement(AppBarElement element)
     {
+        // The raw escape hatch: the caller supplies the instance, so identity is theirs to manage and
+        // only reference equality is checked here.
         if (_elements.Contains(element))
             return;
 

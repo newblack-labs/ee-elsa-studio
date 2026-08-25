@@ -2,9 +2,11 @@
 @using Elsa.Studio.Models
 @using Microsoft.AspNetCore.Components.Authorization
 @using Microsoft.Extensions.DependencyInjection
+@using Microsoft.Extensions.Logging
 @implements IDisposable
 @inject IMenuService MenuService;
 @inject IServiceProvider ServiceProvider;
+@inject ILogger<NavMenu> Logger;
 
 <MudNavMenu Color="Color.Primary" Margin="Margin.Dense" Class="studio-nav">
     @foreach (var menuItemGroup in _menuItemsGroups.Values)
@@ -28,17 +30,17 @@
     private IDictionary<string, MenuItemGroup> _menuItemsGroups = new Dictionary<string, MenuItemGroup>();
     private IEnumerable<MenuItem> _menuItems = new List<MenuItem>();
     private AuthenticationStateProvider? _authenticationStateProvider;
+    private CancellationTokenSource? _reloadCts;
 
     /// <inheritdoc />
     protected override async Task OnInitializedAsync()
     {
         // Menu providers gate their entries on the backend's installed-feature catalog, which is only
-        // readable once the user is authenticated. This component is a stable child of MainLayout, so
-        // Blazor never re-initializes it, and a sign-in that does not reload the page — which is what
-        // the external authentication broker performs — would leave every feature-gated entry
-        // (alterations, console logs, OpenTelemetry, structured logs) missing for the rest of the
-        // session, until the user happens to trigger a full reload. Rebuild the menu whenever the
-        // authentication state changes.
+        // readable once the user is authenticated. The sign-in screen and the app use different
+        // layouts, so the shell is rebuilt around the callback route before the token exchange
+        // completes: the menu is first built unauthenticated, and without rebuilding it every
+        // feature-gated entry (alterations, console logs, OpenTelemetry, structured logs) would stay
+        // missing for the rest of the session, until the user happened to trigger a full reload.
         //
         // Resolved from the service provider rather than injected, because a host that disables
         // authorization registers no AuthenticationStateProvider at all.
@@ -47,21 +49,53 @@
         if (_authenticationStateProvider is not null)
             _authenticationStateProvider.AuthenticationStateChanged += OnAuthenticationStateChanged;
 
-        await LoadMenuAsync();
+        await LoadMenuAsync(CancellationToken.None);
     }
 
-    private async Task LoadMenuAsync()
+    private async Task LoadMenuAsync(CancellationToken cancellationToken)
     {
-        _menuItemsGroups = (await MenuService.GetMenuItemGroupsAsync()).ToDictionary(x => x.Name);
-        _menuItems = await MenuService.GetMenuItemsAsync();
+        // Built into locals and assigned together, so a provider that throws part-way cannot leave the
+        // groups replaced while the items are still the previous authentication state's.
+        var groups = (await MenuService.GetMenuItemGroupsAsync(cancellationToken)).ToDictionary(x => x.Name);
+        var items = await MenuService.GetMenuItemsAsync(cancellationToken);
+
+        cancellationToken.ThrowIfCancellationRequested();
+
+        _menuItemsGroups = groups;
+        _menuItems = items;
     }
 
     private void OnAuthenticationStateChanged(Task<AuthenticationState> authenticationStateTask)
     {
+        // Cancel any rebuild still in flight. The token provider raises this on every token change, so
+        // two overlapping loads can otherwise complete out of order and leave the stale one in place.
+        var previous = _reloadCts;
+        var cts = new CancellationTokenSource();
+        _reloadCts = cts;
+        previous?.Cancel();
+        previous?.Dispose();
+
         _ = InvokeAsync(async () =>
         {
-            await LoadMenuAsync();
-            StateHasChanged();
+            try
+            {
+                // Awaited so the menu is rebuilt against the state this notification carries, and so a
+                // faulted state task surfaces here instead of becoming a second unobserved exception.
+                await authenticationStateTask;
+                await LoadMenuAsync(cts.Token);
+                StateHasChanged();
+            }
+            catch (OperationCanceledException) when (cts.IsCancellationRequested)
+            {
+                // Superseded by a newer authentication state change.
+            }
+            catch (Exception e)
+            {
+                // Never allow this to become an unobserved task exception. In WebAssembly nothing
+                // surfaces those, so the user would be left with a silently half-built navigation for
+                // the rest of the session and no indication that a reload would fix it.
+                Logger.LogError(e, "Failed to rebuild the navigation after an authentication state change");
+            }
         });
     }
 
@@ -70,5 +104,8 @@
     {
         if (_authenticationStateProvider is not null)
             _authenticationStateProvider.AuthenticationStateChanged -= OnAuthenticationStateChanged;
+
+        _reloadCts?.Cancel();
+        _reloadCts?.Dispose();
     }
 }

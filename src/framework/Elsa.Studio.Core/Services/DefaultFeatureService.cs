@@ -39,8 +39,11 @@ public class DefaultFeatureService : IFeatureService
 
             if (!string.IsNullOrWhiteSpace(remoteFeatureName))
             {
-                // Check if the remote feature is enabled.
-                var remoteFeatureIsEnabled = remoteFeatures.Any(x => x.FullName == remoteFeatureName);
+                // Matched through the shared reconciliation, not by exact name: a classic Elsa host
+                // reports shorter names than the CShells ones modules declare. Comparing exactly here
+                // while RemoteFeatureProvider reconciles would render a menu for a feature that is
+                // never initialized.
+                var remoteFeatureIsEnabled = RemoteFeatureNames.Matches(remoteFeatureName, remoteFeatures.Select(x => x.FullName));
 
                 if (!remoteFeatureIsEnabled)
                     continue;

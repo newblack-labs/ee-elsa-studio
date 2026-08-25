@@ -21,48 +21,8 @@ public class RemoteFeatureProvider(
     public async Task<bool> IsEnabledAsync(string featureName, CancellationToken cancellationToken = default)
     {
         var catalog = await GetCatalogAsync(cancellationToken);
-        var candidates = GetCandidateNames(featureName);
 
-        return catalog.Any(feature => candidates.Contains(feature.FullName));
-    }
-
-    /// <summary>
-    /// Returns the names a host might report for the requested feature, newest convention first.
-    /// </summary>
-    /// <remarks>
-    /// Studio modules declare their server dependency using the CShells shell-feature name, such as
-    /// "Elsa.Alterations.ShellFeatures.Alterations" or
-    /// "Elsa.Diagnostics.ConsoleLogs.ShellFeatures.ConsoleLogs". A classic Elsa host installs the same
-    /// capabilities under shorter names — "Elsa.Alterations" and "Elsa.ConsoleLogs" — so an exact match
-    /// never succeeds there and every module carrying [RemoteFeature] quietly disables itself: its menu
-    /// contributes nothing even though the server supports the feature and its pages route correctly.
-    ///
-    /// Two shapes have to be accepted, because dropping ".ShellFeatures.&lt;name&gt;" is not always enough:
-    /// the classic name also loses intermediate namespace segments, so
-    /// "Elsa.Diagnostics.ConsoleLogs.ShellFeatures.ConsoleLogs" becomes "Elsa.ConsoleLogs" rather than
-    /// "Elsa.Diagnostics.ConsoleLogs". Offer both, plus "Elsa.&lt;feature&gt;" built from the leading
-    /// namespace and the shell-feature name.
-    /// </remarks>
-    private static HashSet<string> GetCandidateNames(string featureName)
-    {
-        var candidates = new HashSet<string>(StringComparer.Ordinal) { featureName };
-
-        const string marker = ".ShellFeatures.";
-        var index = featureName.LastIndexOf(marker, StringComparison.Ordinal);
-
-        if (index < 0)
-            return candidates;
-
-        var moduleName = featureName[..index];
-        var shellFeatureName = featureName[(index + marker.Length)..];
-        candidates.Add(moduleName);
-
-        // "Elsa.Diagnostics.ConsoleLogs" + "ConsoleLogs" -> "Elsa.ConsoleLogs".
-        var rootNamespace = moduleName.Split('.').FirstOrDefault();
-        if (!string.IsNullOrEmpty(rootNamespace) && !string.IsNullOrEmpty(shellFeatureName))
-            candidates.Add($"{rootNamespace}.{shellFeatureName}");
-
-        return candidates;
+        return RemoteFeatureNames.Matches(featureName, catalog.Select(feature => feature.FullName));
     }
 
     /// <inheritdoc />
@@ -96,8 +56,11 @@ public class RemoteFeatureProvider(
             }
             catch (ApiException e) when (e.StatusCode is HttpStatusCode.NotFound)
             {
-                _catalog = [];
-                return _catalog;
+                // Deliberately not cached, unlike an earlier version of this catch. A 404 here is as
+                // likely to be transient as permanent — the backend still starting, or a stale proxy
+                // route — and caching the empty result hides every [RemoteFeature]-gated menu for the
+                // rest of the session, with no error anywhere, since the gate fails closed.
+                return [];
             }
             catch (ApiException e) when (e.StatusCode is HttpStatusCode.Unauthorized or HttpStatusCode.Forbidden)
             {
