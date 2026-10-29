@@ -150,8 +150,7 @@ jobs:
       - name: Pack elsa-studio-wasm-react npm package
         run: |
           cd ./src/wrappers
-          # npm version re-resolves the stale Feedz entry in package-lock.json.
-          # Install the WASM tarball produced earlier in this run instead.
+          # Install the WASM tarball produced earlier in this run.
           npm pkg set "version=$VERSION" "dependencies.@elsa-workflows/elsa-studio-wasm=$VERSION" --workspace wrappers/react-wrapper
           npm install --force --no-save --package-lock=false "../../packages/wasm/wwwroot/elsa-workflows-elsa-studio-wasm-$VERSION.tgz"
           cd wrappers/react-wrapper
