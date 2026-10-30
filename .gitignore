@@ -185,9 +185,12 @@ src/modules/Elsa.Studio.Workflows.Designer/ClientLib/package-lock.json
 src/modules/Elsa.Studio.DomInterop/ClientLib/package-lock.json
 src/framework/Elsa.Studio.DomInterop/ClientLib/package-lock.json
 
-src/samples/react/workflow-definition-editor-sample/workflow-definition-editor-app/package-lock.json
+samples/react/workflow-definition-editor-sample/workflow-definition-editor-app/package-lock.json
+src/wrappers/package-lock.json
 
 src/wrappers/.npmrc
 .vs
 
 .codebase-memory/
+
+.env
